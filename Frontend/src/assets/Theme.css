@@ -1,0 +1,34 @@
+body {
+margin: 0;
+font-family: "Segoe UI", sans-serif;
+background: #f4f9ff;
+}
+.topbar {
+background: #1e88e5;
+padding: 15px;
+color: white;
+display: flex;
+align-items: center;
+gap: 15px;
+}
+.menu-btn {
+background: white;
+border: none;
+padding: 8px 12px;
+border-radius: 6px;
+}
+.router-link-active {
+background: #bbdefb;
+}
+.employee-card {
+background: white;
+padding: 20px;
+border-radius: 12px;
+box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+margin-bottom: 15px;
+}
+.employee-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+gap: 20px;
+}

@@ -1,4 +1,6 @@
-CREATE SCHEMA `project1_db` ;
+USE project1_db;
+
+CREATE SCHEMA IF NOT EXISTS `project1_db` ;
 
 
 CREATE TABLE `project1_db`.`departments` (

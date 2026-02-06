@@ -1,236 +1,219 @@
 <template>
-  <div class="attendance container-fluid py-4 mt-3">
-    <div class="row mb-4">
-      <div class="col-12">
-        <h1 class="mb-3">
-          <i class="bi bi-calendar3 me-2"></i>Attendance Tracking
-        </h1>
-      </div>
-    </div>
+  <div class="attendance-container">
+    <h2>Attendance</h2>
 
-    <!-- Date Filter Section -->
-    <div class="row mb-4">
-      <div class="col-md-4">
-        <label for="dateFilter" class="form-label">Filter by Date</label>
-        <input
-          id="dateFilter"
-          v-model="selectedDate"
-          type="date"
-          class="form-control"
-          @change="updateAttendanceRecords"
-        />
-      </div>
-      <div class="col-md-4 d-flex align-items-end">
-        <button @click="generateTodayAttendance" class="btn btn-primary">
-          <i class="bi bi-arrow-clockwise me-2"></i>Generate Today's Attendance
-        </button>
-      </div>
-    </div>
+    <!-- DEBUG (you can remove later) -->
+    <p class="debug">Employees loaded: {{ employeesList.length }}</p>
 
-    <!-- Attendance Table -->
-    <div class="row">
-      <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-header bg-light">
-            <h5 class="mb-0">
-              <i class="bi bi-table me-2"></i>Attendance Records
-              <span v-if="selectedDate" class="ms-2 text-muted">
-                ({{ formatDate(selectedDate) }})
-              </span>
-            </h5>
-          </div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>Employee Name</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="record in filteredAttendance" :key="record.id">
-                    <td>{{ record.employeeName }}</td>
-                    <td>{{ formatDate(record.date) }}</td>
-                    <td>
-                      <span :class="getStatusBadgeClass(record.status)" class="badge">
-                        {{ record.status }}
-                      </span>
-                    </td>
-                    <td>
-                      <span v-if="record.notes" class="text-muted">
-                        {{ record.notes }}
-                      </span>
-                      <span v-else class="text-muted">-</span>
-                    </td>
-                  </tr>
-                  <tr v-if="filteredAttendance.length === 0">
-                    <td colspan="4" class="text-center text-muted">
-                      No attendance records found for selected date
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <table v-if="employeesList.length > 0">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Department</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr v-for="employee in employeesList" :key="employee.id">
+          <td>{{ employee.name }}</td>
+          <td>{{ employee.department }}</td>
+          <td>
+            <span
+              :class="{
+                present: getAttendanceStatus(employee.id) === 'Present',
+                leave: getAttendanceStatus(employee.id) === 'On Leave'
+              }"
+            >
+              {{ getAttendanceStatus(employee.id) }}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p v-else>No employees found.</p>
   </div>
 </template>
 
-<script>
-import { ref, computed, onMounted } from 'vue'
-import { useHRData } from '../composables/useHRData.js'
+<script setup>
+import { onMounted } from 'vue'
+import { useHRData } from '../composables/useHRData'
+// Pull data + methods from composable
+const {
+  employeesList,
+  fetchEmployees,
+  hasApprovedTimeOff
+} = useHRData()
 
-export default {
-  name: 'Attendance',
-  setup() {
-    const { getEmployees, hasApprovedTimeOff, getTimeOffForDate } = useHRData()
-    const employees = getEmployees()
-    const attendanceRecords = ref([])
-    const selectedDate = ref(new Date().toISOString().split('T')[0])
+// Fetch employees when page loads
+onMounted(async () => {
+  await fetchEmployees()
+})
 
-    // Format date for display
-    const formatDate = (dateString) => {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      })
-    }
+// Attendance logic
+const getAttendanceStatus = (employeeId) => {
+  const today = new Date().toISOString().split('T')[0]
 
-    // Get status badge class
-    const getStatusBadgeClass = (status) => {
-      switch (status.toLowerCase()) {
-        case 'present':
-          return 'bg-success'
-        case 'absent':
-          return 'bg-danger'
-        case 'on-leave':
-          return 'bg-info text-dark'
-        default:
-          return 'bg-secondary'
-      }
-    }
-
-    // Generate attendance records for a specific date
-    const generateAttendanceForDate = (date) => {
-      const records = []
-      
-      employees.forEach(employee => {
-        let status = 'present' // Default status
-        let notes = ''
-
-        // Check if employee has approved time-off
-        if (hasApprovedTimeOff(employee.id, date)) {
-          status = 'on-leave'
-          const timeOff = getTimeOffForDate(employee.id, date)
-          if (timeOff) {
-            notes = `Time-off: ${timeOff.type}`
-          }
-        }
-
-        // Check if record already exists
-        const existingRecordIndex = attendanceRecords.value.findIndex(
-          r => r.employeeId === employee.id && r.date === date
-        )
-
-        if (existingRecordIndex === -1) {
-          // Create new record
-          records.push({
-            id: attendanceRecords.value.length > 0
-              ? Math.max(...attendanceRecords.value.map(r => r.id)) + records.length + 1
-              : records.length + 1,
-            employeeId: employee.id,
-            employeeName: employee.name,
-            date: date,
-            status: status,
-            notes: notes
-          })
-        } else {
-          // Update existing record if status changed (e.g., time-off was just approved)
-          const existingRecord = attendanceRecords.value[existingRecordIndex]
-          if (existingRecord.status !== status) {
-            existingRecord.status = status
-            existingRecord.notes = notes
-          }
-        }
-      })
-
-      // Add new records to existing ones
-      attendanceRecords.value.push(...records)
-    }
-
-    // Generate today's attendance
-    const generateTodayAttendance = () => {
-      const today = new Date().toISOString().split('T')[0]
-      selectedDate.value = today
-      generateAttendanceForDate(today)
-    }
-
-    // Update attendance records when date changes
-    const updateAttendanceRecords = () => {
-      if (selectedDate.value) {
-        generateAttendanceForDate(selectedDate.value)
-      }
-    }
-
-    // Filter attendance by selected date
-    const filteredAttendance = computed(() => {
-      if (!selectedDate.value) {
-        return attendanceRecords.value
-      }
-      return attendanceRecords.value.filter(
-        record => record.date === selectedDate.value
-      )
-    })
-
-    // Initialize with today's date and regenerate on mount to pick up any changes
-    onMounted(() => {
-      generateTodayAttendance()
-      // Also regenerate to catch any recent approvals
-      const today = new Date().toISOString().split('T')[0]
-      generateAttendanceForDate(today)
-    })
-
-    return {
-      attendanceRecords,
-      selectedDate,
-      filteredAttendance,
-      formatDate,
-      getStatusBadgeClass,
-      generateTodayAttendance,
-      updateAttendanceRecords
-    }
+  if (hasApprovedTimeOff(employeeId, today)) {
+    return 'On Leave'
   }
+
+  return 'Present'
 }
 </script>
 
 <style scoped>
-.attendance {
-  min-height: 100vh;
+/* -------------------- General -------------------- */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f9f9f9;
+  color: #333;
+  line-height: 1.5;
 }
 
-.card {
+/* -------------------- Headings -------------------- */
+h1, h2 {
+  color: #2c3e50;
+  margin-bottom: 1rem;
+}
+
+/* -------------------- Search/Add Forms -------------------- */
+.search-container,
+.add-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  align-items: center;
+}
+
+.search-container input,
+.add-form input,
+.add-form select {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  flex: 1 1 200px;
+  transition: border-color 0.2s;
+}
+
+.search-container input:focus,
+.add-form input:focus,
+.add-form select:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+button {
+  background-color: #3498db;
+  color: white;
   border: none;
+  padding: 7px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background-color: #2980b9;
+}
+
+.clear-btn {
+  background-color: #e74c3c;
+}
+
+.clear-btn:hover {
+  background-color: #c0392b;
+}
+
+/* -------------------- Table -------------------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 2rem;
+  background: white;
   border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-.card-header {
-  border-radius: 8px 8px 0 0 !important;
+th, td {
+  padding: 12px 15px;
+  text-align: left;
 }
 
-.table th {
-  background-color: #f8f9fa;
-  font-weight: 600;
+thead {
+  background-color: #3498db;
+  color: white;
+  font-weight: bold;
 }
 
-.badge {
-  font-size: 0.875rem;
-  padding: 0.5em 0.75em;
+tbody tr {
+  border-bottom: 1px solid #ddd;
+  transition: background 0.2s;
 }
+
+tbody tr:hover {
+  background-color: #f1f9ff;
+}
+
+/* Editable inputs in table */
+td input, td select {
+  padding: 5px 8px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  width: 100%;
+}
+
+/* Actions column */
+td button {
+  margin-right: 5px;
+  padding: 5px 8px;
+  font-size: 0.9rem;
+}
+
+/* -------------------- Attendance -------------------- */
+.attendance-container {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.attendance-container table tbody tr td span.present {
+  color: green;
+  font-weight: bold;
+}
+
+.attendance-container table tbody tr td span.leave {
+  color: orange;
+  font-weight: bold;
+}
+
+.debug {
+  color: red;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+/* -------------------- Empty / Error -------------------- */
+.error, p {
+  margin: 10px 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .search-container,
+  .add-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  th, td {
+    padding: 10px;
+    font-size: 0.9rem;
+  }
+}
+
 </style>

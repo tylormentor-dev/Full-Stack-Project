@@ -11,7 +11,7 @@
       <input 
         v-model="searchQuery"
         type="text"
-        placeholder="Search by name or department..."
+        placeholder="Search by name, department or role..."
         @keyup.enter="handleSearch"
       />
       <button @click="handleSearch">Search</button>
@@ -27,6 +27,7 @@
           <th>Email</th>
           <th>Department</th>
           <th>Role</th>
+          <th>Position</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -48,22 +49,20 @@
 
           <!-- Editable Department -->
           <td>
-            <select v-if="editingId === emp.id" v-model="editEmp.department_id">
-              <option v-for="dept in departments" :key="dept.id" :value="dept.id">
-                {{ dept.name }}
-              </option>
-            </select>
+            <input v-if="editingId === emp.id" v-model="editEmp.department" />
             <span v-else>{{ emp.department }}</span>
           </td>
 
           <!-- Editable Role -->
           <td>
-            <select v-if="editingId === emp.id" v-model="editEmp.role_id">
-              <option v-for="role in roles" :key="role.id" :value="role.id">
-                {{ role.title }}
-              </option>
-            </select>
+            <input v-if="editingId === emp.id" v-model="editEmp.role" />
             <span v-else>{{ emp.role }}</span>
+          </td>
+
+          <!-- Editable Position -->
+          <td>
+            <input v-if="editingId === emp.id" v-model="editEmp.position" />
+            <span v-else>{{ emp.position }}</span>
           </td>
 
           <!-- Actions -->
@@ -78,25 +77,34 @@
 
     <p v-else-if="!loading">No employees found.</p>
 
-    <!-- Add Employee Form BELOW the list -->
-    <h2>Add New Employee</h2>
-    <form @submit.prevent="createEmployee" class="add-form">
-      <input v-model="newEmp.name" placeholder="Name" required />
-      <input v-model="newEmp.email" placeholder="Email" required />
-      <select v-model="newEmp.department_id" required>
-        <option value="" disabled>Select Department</option>
-        <option v-for="dept in departments" :key="dept.id" :value="dept.id">
-          {{ dept.name }}
-        </option>
-      </select>
-      <select v-model="newEmp.role_id" required>
-        <option value="" disabled>Select Role</option>
-        <option v-for="role in roles" :key="role.id" :value="role.id">
-          {{ role.title }}
-        </option>
-      </select>
-      <button type="submit">Add Employee</button>
-    </form>
+    <!-- Add Employee Section -->
+    <div class="add-employee">
+      <h2>Add New Employee</h2>
+      <form @submit.prevent="createEmployee">
+        <div class="form-row">
+          <label>Name</label>
+          <input v-model="newEmp.name" type="text" required />
+        </div>
+        <div class="form-row">
+          <label>Email</label>
+          <input v-model="newEmp.email" type="email" required />
+        </div>
+        <div class="form-row">
+          <label>Department</label>
+          <input v-model="newEmp.department" type="text" required />
+        </div>
+        <div class="form-row">
+          <label>Role</label>
+          <input v-model="newEmp.role" type="text" required />
+        </div>
+        <div class="form-row">
+          <label>Position</label>
+          <input v-model="newEmp.position" type="text" required />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Add Employee</button>
+      </form>
+    </div>
   </div>
 </template>
 
@@ -106,35 +114,9 @@ import { useHRData } from "../composables/useHRData.js";
 
 const { employeesList, fetchEmployees, addEmployee, updateEmployee, deleteEmployee } = useHRData();
 
-// Departments and Roles
-const departments = ref([]);
-const roles = ref([]);
-
 // Loading/Error
 const loading = ref(false);
 const error = ref(null);
-
-// Fetch Departments
-const fetchDepartments = async () => {
-  try {
-    const res = await fetch("http://localhost:5000/api/departments");
-    departments.value = await res.json();
-  } catch (err) {
-    error.value = "Failed to load departments";
-    console.error(err);
-  }
-};
-
-// Fetch Roles
-const fetchRoles = async () => {
-  try {
-    const res = await fetch("http://localhost:5000/api/roles");
-    roles.value = await res.json();
-  } catch (err) {
-    error.value = "Failed to load roles";
-    console.error(err);
-  }
-};
 
 // -------------------- SEARCH --------------------
 const searchQuery = ref("");
@@ -151,32 +133,53 @@ const filteredEmployees = computed(() => {
   return employeesList.value.filter(
     (emp) =>
       emp.name.toLowerCase().includes(query) ||
-      (emp.department && emp.department.toLowerCase().includes(query))
+      (emp.department && emp.department.toLowerCase().includes(query)) ||
+      (emp.role && emp.role.toLowerCase().includes(query))
   );
 });
 
 // -------------------- ADD --------------------
-const newEmp = ref({ name: "", email: "", department_id: "", role_id: "" });
+const newEmp = ref({
+  name: "",
+  email: "",
+  department: "",
+  role: "",
+  position: ""
+});
+
 const createEmployee = async () => {
   const added = await addEmployee(newEmp.value);
-  if (added) newEmp.value = { name: "", email: "", department_id: "", role_id: "" };
+  if (added) {
+    await fetchEmployees(); // Refresh list
+    newEmp.value = { name: "", email: "", department: "", role: "", position: "" };
+  } else {
+    error.value = "Failed to add employee";
+  }
 };
 
 // -------------------- EDIT --------------------
 const editingId = ref(null);
 const editEmp = ref({});
+
 const startEdit = (emp) => {
   editingId.value = emp.id;
-  editEmp.value = { ...emp };
+  editEmp.value = { ...emp }; // Copy values
 };
+
 const saveEmployee = async (id) => {
   const success = await updateEmployee(id, editEmp.value);
-  if (success) editingId.value = null;
+  if (success) {
+    await fetchEmployees(); // Refresh list
+    editingId.value = null;
+  } else {
+    error.value = "Failed to update employee";
+  }
 };
 
 // -------------------- DELETE --------------------
 const removeEmployee = async (id) => {
   await deleteEmployee(id);
+  await fetchEmployees(); // Refresh list
 };
 
 // -------------------- INITIAL FETCH --------------------
@@ -184,10 +187,9 @@ onMounted(async () => {
   loading.value = true;
   try {
     await fetchEmployees();
-    await fetchDepartments();
-    await fetchRoles();
   } catch (err) {
-    error.value = "Failed to fetch data";
+    error.value = "Failed to fetch employees";
+    console.error(err);
   } finally {
     loading.value = false;
   }
@@ -195,42 +197,85 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* Search/Add form */
-.search-container,
-.add-form {
+h1, h2 {
+  color: #2c3e50;
   margin-bottom: 1rem;
 }
 
-.add-form input,
-.add-form select {
-  margin-right: 0.5rem;
-  padding: 5px;
-}
-
-/* Table */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 1rem;
-}
-
-th,
-td {
-  border: 1px solid #ddd;
-  padding: 8px;
-}
-
-th {
-  background: #f4f4f4;
+.search-container input {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  margin-right: 5px;
 }
 
 button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 5px;
+  cursor: pointer;
   margin-right: 5px;
-  padding: 4px 8px;
 }
 
-/* Error */
-.error {
-  color: red;
+button:hover {
+  background-color: #2980b9;
+}
+
+.clear-btn {
+  background-color: #e74c3c;
+}
+
+.clear-btn:hover {
+  background-color: #c0392b;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 2rem;
+}
+
+th, td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+thead {
+  background-color: #3498db;
+  color: white;
+  font-weight: bold;
+}
+
+td input {
+  width: 100%;
+  padding: 5px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.add-employee {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 10px;
+}
+
+.add-employee .form-row {
+  margin-bottom: 10px;
+}
+
+.add-employee label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.add-employee input {
+  width: 100%;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
 }
 </style>

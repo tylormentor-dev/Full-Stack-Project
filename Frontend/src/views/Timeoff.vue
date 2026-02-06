@@ -1,383 +1,135 @@
 <template>
-  <div class="timeoff container-fluid py-4 mt-3">
-    <div class="row mb-4">
-      <div class="col-12">
-        <h1 class="mb-3">
-          <i class="bi bi-calendar-check me-2"></i>Time Off Requests
-        </h1>
-      </div>
-    </div>
+  <div class="timeoff-container">
+    <h1>Time-Off Requests</h1>
 
-    <!-- Request Form Section -->
-    <div class="row mb-4">
-      <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">
-              <i class="bi bi-plus-circle me-2"></i>Request Time Off
-            </h5>
-          </div>
-          <div class="card-body">
-            <form @submit.prevent="submitRequest">
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label for="employeeSelect" class="form-label">Employee</label>
-                  <select
-                    id="employeeSelect"
-                    v-model="formData.employeeId"
-                    class="form-select"
-                    required
-                  >
-                    <option value="">Select Employee</option>
-                    <option
-                      v-for="employee in employees"
-                      :key="employee.id"
-                      :value="employee.id"
-                    >
-                      {{ employee.name }}
-                    </option>
-                  </select>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label for="typeSelect" class="form-label">Type</label>
-                  <select
-                    id="typeSelect"
-                    v-model="formData.type"
-                    class="form-select"
-                    required
-                  >
-                    <option value="">Select Type</option>
-                    <option value="vacation">Vacation</option>
-                    <option value="sick">Sick Leave</option>
-                    <option value="personal">Personal</option>
-                  </select>
-                </div>
-              </div>
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label for="startDate" class="form-label">Start Date</label>
-                  <input
-                    id="startDate"
-                    ref="startDateInput"
-                    v-model="formData.startDate"
-                    type="text"
-                    class="form-control"
-                    placeholder="Select start date"
-                    required
-                    readonly
-                  />
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label for="endDate" class="form-label">End Date</label>
-                  <input
-                    id="endDate"
-                    ref="endDateInput"
-                    v-model="formData.endDate"
-                    type="text"
-                    class="form-control"
-                    placeholder="Select end date"
-                    required
-                    readonly
-                  />
-                </div>
-              </div>
-              <div class="mb-3">
-                <label for="reason" class="form-label">Reason</label>
-                <textarea
-                  id="reason"
-                  v-model="formData.reason"
-                  class="form-control"
-                  rows="3"
-                  required
-                ></textarea>
-              </div>
-              <button type="submit" class="btn btn-primary">
-                <i class="bi bi-send me-2"></i>Submit Request
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
+    <button class="btn btn-primary mb-3" @click="openModal()">+ Add New Request</button>
 
-    <!-- Requests List Section -->
-    <div class="row">
-      <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-header bg-light">
-            <h5 class="mb-0">
-              <i class="bi bi-list-ul me-2"></i>All Time Off Requests
-            </h5>
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Employee</th>
+          <th>Start Date</th>
+          <th>End Date</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="req in requestsList" :key="req.id">
+          <td>{{ getEmployeeName(req.employeeId) }}</td>
+          <td>{{ req.startDate }}</td>
+          <td>{{ req.endDate }}</td>
+          <td>{{ req.status }}</td>
+          <td>
+            <button class="btn btn-success btn-sm" @click="openModal(req)">Edit</button>
+            <button class="btn btn-danger btn-sm" @click="deleteRequest(req.id)">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Modal -->
+    <div v-if="modalOpen" class="modal-backdrop">
+      <div class="modal-content">
+        <h3>{{ currentRequest.id ? 'Edit' : 'Add' }} Time-Off Request</h3>
+        <form @submit.prevent="submitRequest">
+          <label>Employee</label>
+          <select v-model="currentRequest.employeeId" required>
+            <option v-for="emp in employeesList" :key="emp.id" :value="emp.id">{{ emp.name }}</option>
+          </select>
+
+          <label>Start Date</label>
+          <input type="date" v-model="currentRequest.startDate" required />
+
+          <label>End Date</label>
+          <input type="date" v-model="currentRequest.endDate" required />
+
+          <label>Status</label>
+          <select v-model="currentRequest.status" required>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+
+          <div class="modal-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-secondary" @click="closeModal">Cancel</button>
           </div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>Employee</th>
-                    <th>Start Date</th>
-                    <th>End Date</th>
-                    <th>Type</th>
-                    <th>Reason</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="request in requests" :key="request.id">
-                    <td>{{ request.employeeName }}</td>
-                    <td>{{ formatDate(request.startDate) }}</td>
-                    <td>{{ formatDate(request.endDate) }}</td>
-                    <td>
-                      <span class="badge bg-info text-dark">
-                        {{ capitalizeFirst(request.type) }}
-                      </span>
-                    </td>
-                    <td>{{ request.reason }}</td>
-                    <td>
-                      <span
-                        :class="getStatusBadgeClass(request.status)"
-                        class="badge"
-                      >
-                        {{ capitalizeFirst(request.status) }}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        v-if="request.status === 'pending'"
-                        @click="approveRequest(request.id)"
-                        class="btn btn-sm btn-success me-2"
-                      >
-                        <i class="bi bi-check-circle me-1"></i>Approve
-                      </button>
-                      <button
-                        v-if="request.status === 'pending'"
-                        @click="denyRequest(request.id)"
-                        class="btn btn-sm btn-danger"
-                      >
-                        <i class="bi bi-x-circle me-1"></i>Deny
-                      </button>
-                      <span v-if="request.status !== 'pending'" class="text-muted">
-                        No actions available
-                      </span>
-                    </td>
-                  </tr>
-                  <tr v-if="requests.length === 0">
-                    <td colspan="7" class="text-center text-muted">
-                      No time off requests found
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        </form>
       </div>
     </div>
   </div>
 </template>
 
-<script>
-import { reactive, ref, onMounted, onUnmounted, nextTick } from 'vue'
+<script setup>
+import { ref, reactive, onMounted } from 'vue'
 import { useHRData } from '../composables/useHRData.js'
-import flatpickr from 'flatpickr'
 
-export default {
-  name: 'Timeoff',
-  setup() {
-    // Use shared HR data composable
-    const {
-      employeesList,
-      requestsList,
-      getEmployeeNameById,
-      addTimeOffRequest,
-      updateTimeOffRequestStatus
-    } = useHRData()
-    
-    const formData = reactive({
-      employeeId: '',
-      startDate: '',
-      endDate: '',
-      type: '',
-      reason: ''
-    })
+const { employeesList, requestsList, fetchEmployees, fetchTimeOffRequests, addTimeOffRequest, updateTimeOffRequestStatus, deleteTimeOffRequest, getEmployeeNameById } = useHRData()
 
-    // Refs for date picker inputs
-    const startDateInput = ref(null)
-    const endDateInput = ref(null)
-    let startDatePicker = null
-    let endDatePicker = null
+const modalOpen = ref(false)
+const currentRequest = reactive({ id: null, employeeId: '', startDate: '', endDate: '', status: 'pending' })
 
-    // Format date for display
-    const formatDate = (dateString) => {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      })
-    }
+const openModal = (req = null) => {
+  if (req) Object.assign(currentRequest, req)
+  else Object.assign(currentRequest, { id: null, employeeId: '', startDate: '', endDate: '', status: 'pending' })
+  modalOpen.value = true
+}
 
-    // Capitalize first letter
-    const capitalizeFirst = (str) => {
-      return str.charAt(0).toUpperCase() + str.slice(1)
-    }
+const closeModal = () => modalOpen.value = false
 
-    // Get status badge class
-    const getStatusBadgeClass = (status) => {
-      switch (status) {
-        case 'approved':
-          return 'bg-success'
-        case 'denied':
-          return 'bg-danger'
-        case 'pending':
-          return 'bg-warning text-dark'
-        default:
-          return 'bg-secondary'
-      }
-    }
+const submitRequest = async () => {
+  if (currentRequest.id) {
+    await updateTimeOffRequestStatus(currentRequest.id, currentRequest.status)
+  } else {
+    await addTimeOffRequest(currentRequest)
+  }
+  closeModal()
+}
 
-    // Submit new request
-    const submitRequest = () => {
-      // Validate dates
-      if (new Date(formData.startDate) > new Date(formData.endDate)) {
-        alert('End date must be after start date')
-        return
-      }
-
-      // Create new request
-      const newRequest = {
-        employeeId: parseInt(formData.employeeId),
-        employeeName: getEmployeeNameById(parseInt(formData.employeeId)),
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        type: formData.type,
-        status: 'pending',
-        reason: formData.reason
-      }
-
-      // Add to requests using composable
-      addTimeOffRequest(newRequest)
-
-      // Reset form
-      formData.employeeId = ''
-      formData.startDate = ''
-      formData.endDate = ''
-      formData.type = ''
-      formData.reason = ''
-
-      // Clear date pickers
-      if (startDatePicker) {
-        startDatePicker.clear()
-      }
-      if (endDatePicker) {
-        endDatePicker.clear()
-        endDatePicker.set('minDate', 'today')
-      }
-
-      alert('Time off request submitted successfully!')
-    }
-
-    // Approve request
-    const approveRequest = (requestId) => {
-      updateTimeOffRequestStatus(requestId, 'approved')
-      alert('Time off request approved!')
-    }
-
-    // Deny request
-    const denyRequest = (requestId) => {
-      updateTimeOffRequestStatus(requestId, 'denied')
-      alert('Time off request denied.')
-    }
-
-    // Initialize date pickers
-    onMounted(async () => {
-      await nextTick()
-      
-      // Initialize start date picker
-      if (startDateInput.value) {
-        startDatePicker = flatpickr(startDateInput.value, {
-          dateFormat: 'Y-m-d',
-          minDate: 'today',
-          onChange: (selectedDates, dateStr) => {
-            formData.startDate = dateStr
-            // Update end date picker min date
-            if (endDatePicker && selectedDates.length > 0) {
-              endDatePicker.set('minDate', selectedDates[0])
-            }
-          }
-        })
-      }
-
-      // Initialize end date picker
-      if (endDateInput.value) {
-        endDatePicker = flatpickr(endDateInput.value, {
-          dateFormat: 'Y-m-d',
-          minDate: 'today',
-          onChange: (selectedDates, dateStr) => {
-            formData.endDate = dateStr
-          }
-        })
-      }
-    })
-
-    // Cleanup date pickers on unmount
-    onUnmounted(() => {
-      if (startDatePicker) {
-        startDatePicker.destroy()
-      }
-      if (endDatePicker) {
-        endDatePicker.destroy()
-      }
-    })
-
-    return {
-      requests: requestsList,
-      employees: employeesList,
-      formData,
-      startDateInput,
-      endDateInput,
-      formatDate,
-      capitalizeFirst,
-      getStatusBadgeClass,
-      submitRequest,
-      approveRequest,
-      denyRequest
-    }
+const deleteRequest = async (id) => {
+  if (confirm('Are you sure you want to delete this request?')) {
+    await deleteTimeOffRequest(id)
   }
 }
+
+const getEmployeeName = (id) => getEmployeeNameById(id)
+
+onMounted(async () => {
+  await fetchEmployees()
+  await fetchTimeOffRequests()
+})
 </script>
 
 <style scoped>
-.timeoff {
-  min-height: 100vh;
+.timeoff-container {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 25px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
-.card {
-  border: none;
-  border-radius: 8px;
+.table th, .table td {
+  padding: 12px;
 }
 
-.card-header {
-  border-radius: 8px 8px 0 0 !important;
+.modal-backdrop {
+  position: fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background: rgba(0,0,0,0.4);
+  display:flex; justify-content:center; align-items:center;
 }
 
-.table th {
-  background-color: #f8f9fa;
-  font-weight: 600;
+.modal-content {
+  background: #fff; padding: 20px; border-radius: 10px; width: 400px;
 }
 
-.btn-sm {
-  font-size: 0.875rem;
-}
+.modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
 
-/* Flatpickr styling */
-.flatpickr-input {
-  cursor: pointer;
-}
-
-.form-control[readonly] {
-  background-color: #fff;
-  cursor: pointer;
+.modal-content input, .modal-content select {
+  width: 100%; padding:8px; margin-top:5px; margin-bottom:10px; border-radius:5px; border:1px solid #ccc;
 }
 </style>

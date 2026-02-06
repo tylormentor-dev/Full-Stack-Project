@@ -1,149 +1,105 @@
 <template>
   <div class="payroll-container">
-    <h1>Payroll Calculator</h1>
+    <h1>Payroll</h1>
+    <button class="btn btn-primary mb-3" @click="openModal()">+ Add Payroll Entry</button>
 
-    <form @submit.prevent="generatePayslip">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Employee</th>
+          <th>Hours Worked</th>
+          <th>Leave Deductions</th>
+          <th>Final Salary (R)</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="p in payrollList" :key="p.id">
+          <td>{{ getEmployeeName(p.employeeId) }}</td>
+          <td>{{ p.hoursWorked }}</td>
+          <td>{{ p.leaveDeductions }}</td>
+          <td>R {{ p.finalSalary.toLocaleString() }}</td>
+          <td>
+            <button class="btn btn-success btn-sm" @click="openModal(p)">Edit</button>
+            <button class="btn btn-danger btn-sm" @click="deleteEntry(p.id)">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
 
-      <label>Employee Name</label>
-      <input v-model="employee.name" required />
+    <!-- Modal -->
+    <div v-if="modalOpen" class="modal-backdrop">
+      <div class="modal-content">
+        <h3>{{ currentPayroll.id ? 'Edit' : 'Add' }} Payroll Entry</h3>
+        <form @submit.prevent="submitPayroll">
+          <label>Employee</label>
+          <select v-model="currentPayroll.employeeId" required>
+            <option v-for="emp in employeesList" :key="emp.id" :value="emp.id">{{ emp.name }}</option>
+          </select>
 
-      <label>Hours Worked</label>
-      <input type="number" v-model="employee.hoursWorked" required />
+          <label>Hours Worked</label>
+          <input type="number" v-model="currentPayroll.hoursWorked" required />
 
-      <label>Hourly Rate</label>
-      <input type="number" v-model="employee.hourlyRate" required />
+          <label>Leave Deductions</label>
+          <input type="number" v-model="currentPayroll.leaveDeductions" required />
 
-      <label>Overtime Hours</label>
-      <input type="number" v-model="employee.overtimeHours" />
+          <label>Final Salary</label>
+          <input type="number" v-model="currentPayroll.finalSalary" required />
 
-      <label>Overtime Rate</label>
-      <input type="number" v-model="employee.overtimeRate" />
-
-      <button type="submit">Generate Payslip</button>
-    </form>
-
-    <div class="results" v-if="results">
-      <h2>Payroll Summary</h2>
-      <p>Gross Pay: R {{ results.grossPay }}</p>
-      <p>Overtime Pay: R {{ results.overtimePay }}</p>
-      
-      <p><strong>Net Pay: R {{ results.netPay }}</strong></p>
+          <div class="modal-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-secondary" @click="closeModal">Cancel</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { ref, reactive, onMounted } from 'vue'
+import { useHRData } from '../composables/useHRData.js'
 
-const router = useRouter();
+const { employeesList, payrollList, fetchEmployees, fetchPayroll, addPayroll, updatePayroll, deletePayroll, getEmployeeNameById } = useHRData()
 
-const employee = reactive({
-  name: "",
-  hoursWorked: 0,
-  hourlyRate: 0,
-  overtimeHours: 0,
-  overtimeRate: 0
-});
+const modalOpen = ref(false)
+const currentPayroll = reactive({ id: null, employeeId: '', hoursWorked: 0, leaveDeductions: 0, finalSalary: 0 })
 
-const results = ref(null);
-
-function calculatePayroll() {
-  const grossPay = employee.hoursWorked * employee.hourlyRate;
-  const overtimePay = employee.overtimeHours * employee.overtimeRate;
-
-  const pension = grossPay * 0.01;  // 1% deduction
-
-  const netPay = grossPay + overtimePay - pension;
-
-  results.value = {
-    grossPay,
-    overtimePay,
-    pension,
-    netPay,
-  };
+const openModal = (p = null) => {
+  if (p) Object.assign(currentPayroll, p)
+  else Object.assign(currentPayroll, { id: null, employeeId: '', hoursWorked: 0, leaveDeductions: 0, finalSalary: 0 })
+  modalOpen.value = true
 }
 
-function generatePayslip() {
-  calculatePayroll();
+const closeModal = () => modalOpen.value = false
 
-  router.push({
-    name: "payslip",
-    query: {
-      name: employee.name,
-      grossPay: results.value.grossPay,
-      overtimePay: results.value.overtimePay,
-      pension: results.value.pension,
-      netPay: results.value.netPay,
-    },
-  });
+const submitPayroll = async () => {
+  if (currentPayroll.id) await updatePayroll(currentPayroll.id, currentPayroll)
+  else await addPayroll(currentPayroll)
+  closeModal()
 }
+
+const deleteEntry = async (id) => {
+  if (confirm('Delete this payroll entry?')) await deletePayroll(id)
+}
+
+const getEmployeeName = (id) => getEmployeeNameById(id)
+
+onMounted(async () => {
+  await fetchEmployees()
+  await fetchPayroll()
+})
 </script>
 
-
-<style>
+<style scoped>
 .payroll-container {
-  max-width: 600px;
-  margin: 40px auto;
-  background: #ffffff;
-  padding: 25px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  max-width: 900px; margin:40px auto; padding:25px; background:#fff; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.08);
 }
 
-h1 {
-  text-align: center;
-  color: #1E90FF;
-  margin-bottom: 20px;
-  font-size: 28px;
-  font-weight: bold;
-}
+.table th, .table td { padding:12px; }
 
-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-label {
-  font-weight: 600;
-  color: #3A3A3A;
-}
-
-input {
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #dcdcdc;
-  background: #F2F4F7;
-  font-size: 15px;
-}
-
-button {
-  background: #58AFFF;
-  color: white;
-  padding: 12px;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 16px;
-  margin-top: 10px;
-  transition: 0.2s;
-}
-
-button:hover {
-  background: #1E90FF;
-}
-
-.results {
-  margin-top: 30px;
-  background: #F2F4F7;
-  padding: 20px;
-  border-radius: 12px;
-  text-align: center;
-}
-
-.results p strong {
-  font-size: 20px;
-}
-
+.modal-backdrop { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.4); display:flex; justify-content:center; align-items:center; }
+.modal-content { background:#fff; padding:20px; border-radius:10px; width:400px; }
+.modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+.modal-content input, .modal-content select { width:100%; padding:8px; margin-top:5px; margin-bottom:10px; border-radius:5px; border:1px solid #ccc; }
 </style>

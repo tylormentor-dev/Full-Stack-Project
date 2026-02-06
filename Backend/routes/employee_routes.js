@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.get('/', getEmployees);
 router.post('/', validateEmployee, addEmployee);
-router.patch('/:id', validateEmployee, updateEmployee);
+router.patch('/:id',validateEmployee, updateEmployee);
 router.delete('/:id', deleteEmployee);
 
 export default router;

@@ -1,130 +1,86 @@
-// Shared state composable for HR data
-// Uses localStorage to persist data across page navigation
+import { ref } from 'vue'
 
-import { ref, watch } from 'vue'
-import { employees, timeOffRequests } from '../data/dummyData.js'
+const API_BASE = 'http://localhost:5000/api/employees'
 
-// Initialize data from localStorage or use defaults
-const getStoredData = (key, defaultValue) => {
-  const stored = localStorage.getItem(key)
-  return stored ? JSON.parse(stored) : defaultValue
-}
-
-const saveData = (key, data) => {
-  localStorage.setItem(key, JSON.stringify(data))
-}
-
-// Reactive state
-const employeesList = ref(getStoredData('hr_employees', employees))
-const requestsList = ref(getStoredData('hr_timeoff_requests', timeOffRequests))
-
-// Watch for changes and save to localStorage
-watch(employeesList, (newVal) => {
-  saveData('hr_employees', newVal)
-}, { deep: true })
-
-watch(requestsList, (newVal) => {
-  saveData('hr_timeoff_requests', newVal)
-}, { deep: true })
+const employeesList = ref([])
+const requestsList = ref([]) // time off (local only)
+const error = ref(null)
 
 export function useHRData() {
-  // Get all employees
-  const getEmployees = () => {
-    return employeesList.value
+
+  // ===== EMPLOYEES =====
+  const fetchEmployees = async () => {
+    try {
+      const res = await fetch(API_BASE)
+      employeesList.value = await res.json()
+    } catch (err) {
+      error.value = 'Failed to fetch employees'
+    }
   }
 
-  // Get employee by ID
-  const getEmployeeById = (id) => {
-    return employeesList.value.find(emp => emp.id === id)
+  const addEmployee = async (employee) => {
+    const res = await fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(employee)
+    })
+    const data = await res.json()
+    employeesList.value.push(data.employee)
   }
 
-  // Get employee name by ID
-  const getEmployeeNameById = (id) => {
-    const employee = getEmployeeById(id)
-    return employee ? employee.name : 'Unknown'
+  const updateEmployee = async (id, employee) => {
+    const res = await fetch(`${API_BASE}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(employee)
+    })
+    const data = await res.json()
+    const index = employeesList.value.findIndex(e => e.id === id)
+    if (index !== -1) employeesList.value[index] = data.employee
   }
 
-  // Get all time-off requests
-  const getTimeOffRequests = () => {
-    return requestsList.value
+  const deleteEmployee = async (id) => {
+    await fetch(`${API_BASE}/${id}`, { method: 'DELETE' })
+    employeesList.value = employeesList.value.filter(e => e.id !== id)
   }
 
-  // Get pending requests
-  const getPendingRequests = () => {
-    return requestsList.value.filter(req => req.status === 'pending')
-  }
-
-  // Get approved requests
-  const getApprovedRequests = () => {
-    return requestsList.value.filter(req => req.status === 'approved')
-  }
-
-  // Add new time-off request
+  // ===== TIME OFF (LOCAL STATE) =====
   const addTimeOffRequest = (request) => {
-    const newRequest = {
-      ...request,
-      id: requestsList.value.length > 0
-        ? Math.max(...requestsList.value.map(r => r.id)) + 1
-        : 1
-    }
-    requestsList.value.push(newRequest)
-    return newRequest
+    request.id = Date.now()
+    requestsList.value.push(request)
   }
 
-  // Update time-off request status
-  const updateTimeOffRequestStatus = (requestId, status) => {
-    const request = requestsList.value.find(r => r.id === requestId)
-    if (request) {
-      request.status = status
-      return true
-    }
-    return false
+  const updateTimeOffRequestStatus = (id, status) => {
+    const req = requestsList.value.find(r => r.id === id)
+    if (req) req.status = status
   }
 
-  // Check if employee has approved time-off for a date
   const hasApprovedTimeOff = (employeeId, date) => {
-    const dateObj = new Date(date)
-    return requestsList.value.some(request => {
-      if (
-        request.employeeId === employeeId &&
-        request.status === 'approved'
-      ) {
-        const startDate = new Date(request.startDate)
-        const endDate = new Date(request.endDate)
-        return dateObj >= startDate && dateObj <= endDate
-      }
-      return false
-    })
+    return requestsList.value.some(r =>
+      r.employeeId === employeeId &&
+      r.status === 'approved' &&
+      date >= r.startDate &&
+      date <= r.endDate
+    )
   }
 
-  // Get time-off request for employee on a specific date
-  const getTimeOffForDate = (employeeId, date) => {
-    const dateObj = new Date(date)
-    return requestsList.value.find(request => {
-      if (
-        request.employeeId === employeeId &&
-        request.status === 'approved'
-      ) {
-        const startDate = new Date(request.startDate)
-        const endDate = new Date(request.endDate)
-        return dateObj >= startDate && dateObj <= endDate
-      }
-      return false
-    })
+  const getEmployeeNameById = (id) => {
+    return employeesList.value.find(e => e.id === id)?.name || 'Unknown'
   }
 
   return {
     employeesList,
     requestsList,
-    getEmployees,
-    getEmployeeById,
-    getEmployeeNameById,
-    getTimeOffRequests,
-    getPendingRequests,
-    getApprovedRequests,
+    error,
+
+    fetchEmployees,
+    addEmployee,
+    updateEmployee,
+    deleteEmployee,
+
     addTimeOffRequest,
     updateTimeOffRequestStatus,
     hasApprovedTimeOff,
-    getTimeOffForDate
+    getEmployeeNameById
   }
 }
